@@ -5,7 +5,9 @@ const db = getFirestore(getApp());
 const pick = (s, root = document) => root.querySelector(s);
 const all = (s, root = document) => Array.from(root.querySelectorAll(s));
 let cachedStaff = [];
+let cachedPaystubs = [];
 let isLoadingStaff = false;
+let isLoadingPaystubs = false;
 
 async function loadStaff() {
   if (cachedStaff.length || isLoadingStaff) return cachedStaff;
@@ -17,6 +19,18 @@ async function loadStaff() {
     isLoadingStaff = false;
   }
   return cachedStaff;
+}
+
+async function loadPaystubs() {
+  if (cachedPaystubs.length || isLoadingPaystubs) return cachedPaystubs;
+  isLoadingPaystubs = true;
+  try {
+    const snap = await getDocs(collection(db, "paystubs"));
+    cachedPaystubs = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => String(b.periodId || "").localeCompare(String(a.periodId || "")));
+  } finally {
+    isLoadingPaystubs = false;
+  }
+  return cachedPaystubs;
 }
 
 window.CS_CUSTOM_MODAL = function modalBox(options = {}) {
@@ -67,10 +81,37 @@ async function addStaffPicker(input) {
   };
 }
 
+async function addPaystubPicker(input) {
+  if (!input || input.dataset.paystubPickerReady) return;
+  input.dataset.paystubPickerReady = "true";
+  const paystubs = await loadPaystubs();
+  const select = document.createElement("select");
+  select.className = "staff-picker paystub-picker";
+  select.innerHTML = `<option value="">Select paystub...</option>` + paystubs.map((p) => {
+    const paystubId = p.paystubId || p.id || "";
+    const employee = p.employeeName || p.employeeId || "Unknown Employee";
+    const period = p.periodId || "No Period";
+    const amount = Number.isFinite(Number(p.finalRobuxAmount)) ? `R$${Number(p.finalRobuxAmount).toLocaleString()}` : "R$0";
+    const status = p.paymentStatus || p.requestStatus || "No Status";
+    return `<option value="${paystubId}" data-amount="${Number(p.finalRobuxAmount || 0)}" data-employee="${p.employeeId || ""}" data-payroll="${p.payrollId || ""}">${employee} | ${period} | ${paystubId} | ${amount} | ${status}</option>`;
+  }).join("");
+  input.parentElement.insertBefore(select, input);
+  input.style.display = "none";
+  select.onchange = () => {
+    const selected = select.selectedOptions[0];
+    input.value = selected?.value || "";
+    const form = input.closest("form");
+    if (!form || !selected) return;
+    const requestedAmount = form.querySelector('input[name="requestedAmount"]');
+    if (requestedAmount && selected.dataset.amount) requestedAmount.value = selected.dataset.amount;
+  };
+}
+
 function enhanceOpenForms() {
   const formArea = pick(".modal");
   if (!formArea) return;
   all('input[name="employeeId"], input[name="subjectEmployeeId"]', formArea).forEach(addStaffPicker);
+  all('input[name="paystubId"]', formArea).forEach(addPaystubPicker);
 }
 
 function addPayrollIdShortcut() {
