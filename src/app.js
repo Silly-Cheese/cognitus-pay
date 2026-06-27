@@ -1,8 +1,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
 
 const firebaseConfig={apiKey:"AIzaSyCWD3utr1FC1pIGZ1A9mvurPNkN3ndZZlo",authDomain:"cognitus-pay.firebaseapp.com",projectId:"cognitus-pay",storageBucket:"cognitus-pay.firebasestorage.app",messagingSenderId:"89172973354",appId:"1:89172973354:web:2be42b5279a45052acb053"};
-const app=initializeApp(firebaseConfig); const db=getFirestore(app);
+const app=initializeApp(firebaseConfig); const db=getFirestore(app); const auth=getAuth(app);
 const $=s=>document.querySelector(s); const appEl=$("#app");
 const money=n=>`R$${Number(n||0).toLocaleString()}`; const now=()=>new Date().toISOString();
 const ROLE_PERMS={
@@ -29,7 +30,7 @@ function authScreen(mode="login",msg=""){
   appEl.innerHTML=`<main class="auth-wrap"><section class="auth-card"><div class="brand"><div class="logo">CS</div><div><h1>Cognitus Financial Portal</h1><small>Robux payroll, expenses, approvals, and audits.</small></div></div>${msg?`<div class="notice">${msg}</div>`:""}<div id="authBody"></div></section></main>`;
   if(mode==="bootstrap") return bootstrapForm(); loginForm();
 }
-async function init(){if(await maybeBootstrap()) authScreen("bootstrap","No Owner account exists yet. Create the protected bootstrap Owner account first."); else authScreen();}
+async function init(){try{await signInAnonymously(auth)}catch(e){console.error(e);appEl.innerHTML=`<main class="auth-wrap"><section class="auth-card"><h1>Firebase Auth Setup Needed</h1><p>Enable Anonymous Authentication in Firebase Console, then refresh.</p></section></main>`;return} if(await maybeBootstrap()) authScreen("bootstrap","No Owner account exists yet. Create the protected bootstrap Owner account first."); else authScreen();}
 function bootstrapForm(){ $("#authBody").innerHTML=`<form id="boot" class="grid"><h2>Owner Bootstrap</h2><div class="grid two"><label>Discord Username<input name="discordUsername" required value="Executive_Eagle"></label><label>Discord User ID<input name="discordId" required placeholder="Your numeric Discord ID"></label></div><div class="grid two"><label>Create 4-digit PIN<input name="pin" maxlength="4" pattern="[0-9]{4}" required type="password"></label><label>Confirm PIN<input name="pin2" maxlength="4" pattern="[0-9]{4}" required type="password"></label></div><button>Create Owner Account</button></form>`;
   $("#boot").onsubmit=async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target)); if(f.pin!==f.pin2)return alert("PINs do not match."); const salt=crypto.randomUUID(); const hash=await pinHash(f.pin,salt); const owner={employeeName:"Executive_Eagle",employeeId:"COG-EXC-001",department:"Executive",rank:"Executive_Eagle",payrollId:"CS-1205",discordUsername:f.discordUsername.trim(),discordId:f.discordId.trim(),pinHash:hash,pinSalt:salt,pinCreatedAt:serverTimestamp(),firstLoginComplete:true,accountStatus:"Active",role:"owner",permissions:["*"],payRate:0,payRateType:"Manual",payrollStatus:"Active",protectedAccount:true,cannotDelete:true,isBootstrapOwner:true,createdAt:serverTimestamp(),createdBy:"SYSTEM_BOOTSTRAP"}; await setDoc(doc(db,"users",owner.employeeId),owner); await setDoc(doc(db,"payrollProfiles",owner.payrollId),{employeeId:owner.employeeId,payrollId:owner.payrollId,currentBalance:0,lifetimePaid:0,payrollStatus:"Active",createdAt:serverTimestamp()}); await audit("bootstrap_owner_created",{employeeId:owner.employeeId,payrollId:owner.payrollId}); authScreen("login","Owner created. Sign in with your Discord Username, Discord ID, and PIN.")}
 }
