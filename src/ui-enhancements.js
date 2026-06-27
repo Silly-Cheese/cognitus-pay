@@ -42,8 +42,14 @@ window.CS_CUSTOM_MODAL = function modalBox(options = {}) {
 
 function removeNaNMoney() { all("td").forEach((cell) => { if (cell.textContent.trim() === "R$NaN") cell.textContent = ""; }); }
 
+function isAddEmployeeForm(input) {
+  const form = input.closest("form");
+  if (!form) return false;
+  return form.id === "emp" || Boolean(form.querySelector('input[name="discordUsername"]'));
+}
+
 async function addStaffPicker(input) {
-  if (!input || input.dataset.staffPickerReady) return;
+  if (!input || input.dataset.staffPickerReady || isAddEmployeeForm(input)) return;
   input.dataset.staffPickerReady = "true";
   const staff = await loadStaff();
   const select = document.createElement("select");
@@ -64,10 +70,14 @@ async function addStaffPicker(input) {
     const nameInput = form.querySelector('input[name="employeeName"]');
     const payrollInput = form.querySelector('input[name="payrollId"]');
     const currentPayrollInput = form.querySelector('input[name="currentPayrollId"]');
-    if (nameInput) nameInput.value = selected.dataset.name || "";
-    if (payrollInput) payrollInput.value = selected.dataset.payroll || "";
+    if (nameInput && nameInput.closest("form")?.id !== "emp") nameInput.value = selected.dataset.name || "";
+    if (payrollInput && optInAutofill(form)) payrollInput.value = selected.dataset.payroll || "";
     if (currentPayrollInput) currentPayrollInput.value = selected.dataset.payroll || "";
   };
+}
+
+function optInAutofill(form) {
+  return form.id !== "emp" && !form.querySelector('input[name="discordUsername"]');
 }
 
 async function addPaystubPicker(input) {
